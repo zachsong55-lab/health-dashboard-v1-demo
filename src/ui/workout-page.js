@@ -1,5 +1,5 @@
 import { getDayStatus, buildSeries, meanSeries } from '../domain/day-status.js';
-import { estimateMuscleRecovery } from '../domain/recovery.js';
+import { estimateMuscleRecovery, RULES } from '../domain/recovery.js';
 import { getWeeklyCoverage } from '../domain/weekly-coverage.js';
 import { MUSCLE_NAMES, EXERCISE_MAP } from '../domain/muscle-map.js';
 import { createBodyMap } from './body-map.js';
@@ -18,6 +18,7 @@ const dateLabel = value => value ? `${value.slice(5, 7)}月${value.slice(8)}日`
 let resizeBound = false;
 let refreshBodyMap = () => {};
 let selectedMuscle = 'chest';
+let peekRequested = false;
 let activeFilters = { dateFrom: '', dateTo: '', muscle: '', type: '', source: '' };
 
 export function renderWorkoutPage(state) {
@@ -25,12 +26,13 @@ export function renderWorkoutPage(state) {
   const scopedSessions = sessions.filter(session => session.date <= selectedDate);
   const scopedDays = dayLogs.filter(day => day.date <= selectedDate).slice(-14);
   const recovery = estimateMuscleRecovery(scopedSessions, new Date(`${selectedDate}T20:00:00+04:00`));
-  renderDayStatus(scopedDays);
-  renderActivityHeatmap(scopedDays, scopedSessions);
   renderRecovery(recovery, scopedSessions, selectedDate);
   renderCoverage(scopedSessions, selectedDate, legacyWorkouts);
+  renderDayStatus(scopedDays);
+  renderActivityHeatmap(scopedDays, scopedSessions);
   if (!document.querySelector('[data-page="workout"]')?.hidden) renderTrends(scopedDays, scopedSessions, legacyWorkouts);
   else document.querySelector('#training-trends').replaceChildren();
+  renderRules();
 }
 
 function renderDayStatus(logs) {
@@ -76,47 +78,188 @@ function renderRecovery(recovery, sessions, selectedDate) {
     ['front', 'back'].filter(view => window.innerWidth >= 1024 || view === mobileView).forEach(view => {
       const panel = document.createElement('div'); panel.className = `body-map-panel view-${view}`;
       const heading = document.createElement('h3'); heading.textContent = view === 'front' ? '正面' : '背面';
-      panel.append(heading, createBodyMap(view, recovery, muscle => showMuscle(muscle, recovery, sessions, selectedDate)));
+      panel.append(heading, createBodyMap(view, recovery, muscle => selectMuscle(muscle, recovery, sessions, selectedDate), selectedMuscle));
       root.append(panel);
     });
   };
   refreshBodyMap = renderMap;
+  renderChips(recovery, muscle => selectMuscle(muscle, recovery, sessions, selectedDate));
   buttons.forEach(button => { button.onclick = () => {
     buttons.forEach(item => { const selected = item === button; item.classList.toggle('selected', selected); item.setAttribute('aria-pressed', String(selected)); }); renderMap();
   }; });
   if (!resizeBound) { window.addEventListener('resize', () => refreshBodyMap(), { passive: true }); resizeBound = true; }
   renderMap();
-  const legend = document.querySelector('#recovery-legend'); legend.replaceChildren();
-  Object.entries(recoveryLabels).forEach(([status, label]) => {
-    const item = document.createElement('span'); item.className = `recovery-key status-${status}`;
-    const swatch = document.createElement('i'); swatch.setAttribute('aria-hidden', 'true'); item.append(swatch, document.createTextNode(label)); legend.append(item);
-  });
+  document.querySelector('#recovery-legend').replaceChildren(...Object.keys(recoveryLabels).map(recoveryKey), neutralKey());
   showMuscle(selectedMuscle, recovery, sessions, selectedDate);
+}
+
+function recoveryKey(status) {
+  const item = document.createElement('span'); item.className = `recovery-key status-${status}`;
+  const swatch = document.createElement('i'); swatch.setAttribute('aria-hidden', 'true');
+  item.append(swatch, document.createTextNode(recoveryLabels[status]));
+  return item;
+}
+
+// Not a recovery status, so it deliberately does not use the .recovery-key class.
+function neutralKey() {
+  const item = document.createElement('span'); item.className = 'legend-neutral';
+  const swatch = document.createElement('i'); swatch.setAttribute('aria-hidden', 'true');
+  item.append(swatch, document.createTextNode('未纳入估计'));
+  return item;
+}
+
+function muscleSwatch(status) {
+  const swatch = document.createElement('i'); swatch.className = `muscle-swatch status-${status}`; swatch.setAttribute('aria-hidden', 'true');
+  return swatch;
+}
+
+const statusFor = (id, recovery) => recovery.find(item => item.muscleId === id)?.status || 'unknown';
+const hoursLabel = row => row?.hoursSince == null ? '距上次训练时间未知' : `距上次训练约 ${Math.round(row.hoursSince)} 小时`;
+
+function renderChips(recovery, onSelect) {
+  document.querySelector('#muscle-chips').replaceChildren(...Object.entries(MUSCLE_NAMES).map(([id, name]) => {
+    const status = statusFor(id, recovery);
+    const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'muscle-chip'; chip.dataset.chipMuscle = id;
+    chip.setAttribute('aria-label', `${name}，${recoveryLabels[status]}`);
+    chip.setAttribute('aria-pressed', String(id === selectedMuscle));
+    chip.append(muscleSwatch(status), document.createTextNode(name));
+    chip.onclick = () => onSelect(id);
+    return chip;
+  }));
+}
+
+// A user's tap (map or chip), as opposed to the initial or re-rendered detail.
+function selectMuscle(id, recovery, sessions, selectedDate) {
+  peekRequested = true;
+  showMuscle(id, recovery, sessions, selectedDate);
+}
+
+function renderPeek(id, row) {
+  const peek = document.querySelector('#muscle-peek');
+  const status = row?.status || 'unknown';
+  const text = document.createElement('div'); text.className = 'muscle-peek-text';
+  const name = document.createElement('strong'); name.textContent = MUSCLE_NAMES[id];
+  const state = document.createElement('span'); state.textContent = recoveryLabels[status];
+  const hours = document.createElement('small'); hours.textContent = hoursLabel(row);
+  text.append(name, state, hours);
+  const link = document.createElement('button'); link.type = 'button'; link.className = 'text-button'; link.textContent = '查看详情';
+  link.onclick = () => document.querySelector('#muscle-detail').scrollIntoView({ block: 'start' });
+  peek.replaceChildren(muscleSwatch(status), text, link);
+  peek.hidden = !peekRequested;
+}
+
+function trainsMuscle(exercise, id) {
+  const mapping = EXERCISE_MAP[exercise.exerciseId];
+  return Boolean(mapping && [...mapping.primary, ...mapping.secondary].includes(id));
+}
+
+// Earlier records only: the latest training date is already described by the fields above.
+function recentSessions(id, sessions, latestDate) {
+  const block = document.createElement('div'); block.className = 'muscle-recent';
+  const heading = document.createElement('h4'); heading.textContent = latestDate ? '此前最近训练记录' : '最近训练记录'; block.append(heading);
+  const trained = sessions.map(session => ({ session, exercises: (session.exercises || []).filter(ex => trainsMuscle(ex, id)) }))
+    .filter(item => item.exercises.length && item.session.date !== latestDate)
+    .sort((a, b) => b.session.date.localeCompare(a.session.date) || (b.session.start || '').localeCompare(a.session.start || ''))
+    .slice(0, 3);
+  if (!trained.length) {
+    const none = document.createElement('p'); none.className = 'empty'; none.textContent = latestDate ? '无更早记录' : '无可用记录'; block.append(none);
+    return block;
+  }
+  const list = document.createElement('ol');
+  trained.forEach(({ session, exercises }) => {
+    const item = document.createElement('li');
+    const date = document.createElement('time'); date.dateTime = session.date; date.textContent = dateLabel(session.date);
+    const summary = document.createElement('span');
+    summary.textContent = exercises.map(ex => `${EXERCISE_MAP[ex.exerciseId].name} ${ex.sets?.length ?? 0} 组`).join('、');
+    item.append(date, summary); list.append(item);
+  });
+  block.append(list);
+  return block;
+}
+
+function renderRules() {
+  const summary = document.querySelector('#rules-summary'), mapping = document.querySelector('#rules-mapping');
+  if (!summary || !mapping) return;
+  const percent = ratio => `${Math.round(ratio * 100)}%`;
+  const setFactors = RULES.setBands.map((band, index) => {
+    const from = RULES.setBands[index - 1]?.below;
+    const range = from == null ? `少于 ${band.below} 组` : Number.isFinite(band.below) ? `${from} 至不足 ${band.below} 组` : `${from} 组及以上`;
+    return `${range} ×${band.factor}`;
+  }).join('；');
+  const rules = [
+    ['基础恢复窗口', Object.entries(RULES.baseWindowHours).map(([id, hours]) => `${MUSCLE_NAMES[id]} ${hours} 小时`).join('、')],
+    ['组数系数', `按有效组数（辅助肌群每组计 ${RULES.secondaryWeight}）：${setFactors}`],
+    ['RPE 强度系数', `平均 RPE ≥ ${RULES.rpeHighThreshold} 时 ×${RULES.rpeHighFactor}，≤ ${RULES.rpeLowThreshold} 时 ×${RULES.rpeLowFactor}，其间 ×1，缺失时 ×${RULES.rpeMissingFactor}；覆盖率低于 ${percent(RULES.rpeCoverageForConfidence)} 时可信度降一级`],
+    ['窗口叠加', `近期较早训练的剩余窗口会部分累加；单次上限 ${RULES.maxSessionWindowHours} 小时，叠加上限 ${RULES.maxCombinedWindowHours} 小时`],
+    ['状态阈值', `不足 ${RULES.recentBelowHours} 小时：${recoveryLabels.recent}；其后未达窗口的 ${percent(RULES.recoveringThrough)}：${recoveryLabels.recovering}；达到 ${percent(RULES.recoveringThrough)} 但未满窗口：${recoveryLabels.near}；满窗口：${recoveryLabels.window_passed}`],
+    ['数据要求', `只有来源为用户确认或已同步、非估算、开始时间有效、次数与重量（或自重标记）完整，且在 ${RULES.lookbackDays} 天回看期内的记录，才能显示绿色等状态颜色；否则显示未知。状态来自训练记录，不由缺失数据推断`],
+    ['记录与统计', '近 14 天记录中的空白只表示尚未记录；大类训练量分布按全部肌群计算'],
+    ['使用边界', '规则模型估算，不是医学检测结果，也不构成医疗建议']
+  ];
+  const list = document.createElement('dl');
+  rules.forEach(([label, text]) => { const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = text; list.append(term, detail); });
+  summary.replaceChildren(list);
+
+  const table = document.createElement('table');
+  const caption = document.createElement('caption'); caption.textContent = '动作与肌群映射'; table.append(caption);
+  const head = table.createTHead().insertRow();
+  ['动作', '主要肌群', '辅助肌群'].forEach(text => { const cell = document.createElement('th'); cell.scope = 'col'; cell.textContent = text; head.append(cell); });
+  const body = table.createTBody();
+  const names = ids => ids.map(id => MUSCLE_NAMES[id]).join('、') || '无';
+  Object.values(EXERCISE_MAP).forEach(exercise => {
+    const row = body.insertRow();
+    const name = document.createElement('th'); name.scope = 'row'; name.textContent = exercise.name; row.append(name);
+    row.insertCell().textContent = names(exercise.primary);
+    row.insertCell().textContent = names(exercise.secondary);
+  });
+  mapping.replaceChildren(table);
 }
 
 function showMuscle(id, recovery, sessions, selectedDate) {
   selectedMuscle = id;
+  // Update the map in place so keyboard focus stays on the chosen muscle.
+  document.querySelectorAll('#body-maps .muscle-target').forEach(target => {
+    const selected = target.dataset.muscle === id;
+    target.classList.toggle('is-selected', selected); target.setAttribute('aria-pressed', String(selected));
+  });
+  document.querySelectorAll('#muscle-chips [data-chip-muscle]').forEach(chip => chip.setAttribute('aria-pressed', String(chip.dataset.chipMuscle === id)));
   const row = recovery.find(item => item.muscleId === id);
-  const matched = sessions.flatMap(session => (session.exercises || []).filter(ex => {
-    const mapping = EXERCISE_MAP[ex.exerciseId]; return mapping && [...mapping.primary, ...mapping.secondary].includes(id);
-  }).map(ex => ({ session, ex }))).sort((a, b) => b.session.date.localeCompare(a.session.date));
+  const matched = sessions.flatMap(session => (session.exercises || []).filter(ex => trainsMuscle(ex, id))
+    .map(ex => ({ session, ex }))).sort((a, b) => b.session.date.localeCompare(a.session.date));
   const latestDate = row?.lastDate?.slice(0, 10);
   const recent = matched.filter(item => item.session.date === latestDate);
   const reasonText = row?.reasons?.length ? row.reasons.join('；') : '可用训练资料不足';
   const fields = [
-    ['部位', MUSCLE_NAMES[id]], ['最近训练日期', latestDate || '未知'],
+    ['最近训练日期', latestDate || '未知'],
     ['相关训练动作', recent.length ? [...new Set(recent.map(item => EXERCISE_MAP[item.ex.exerciseId]?.name || '其他训练动作'))].join('、') : '无可用记录'],
-    ['组数（原始/有效）', row?.lastDate ? `${fmt(row.sets)} / ${fmt(row.effectiveSets)}` : '未知'],
-    ['训练量', row?.volumeKg == null ? '未估算' : `${fmt(row.volumeKg)} kg`],
-    ['距上次训练', row?.hoursSince == null ? '未知' : `约 ${Math.round(row.hoursSince)} 小时`],
-    ['估计状态', recoveryLabels[row?.status || 'unknown']], ['依据', reasonText],
-    ['数据来源与可信度', row?.source?.length ? `${row.source.map(source => sources[source] || '未知来源').join('、')}；${({ high: '高', medium: '中', low: '低' })[row.confidence] || '低'}可信度` : '无可用来源']
+    ['组数 原始/有效', row?.lastDate ? `${fmt(row.sets)} / ${fmt(row.effectiveSets)}` : '未知'],
+    ['训练量', row?.volumeKg == null ? '未估算' : `${fmt(row.volumeKg)} kg`]
   ];
+  const hasSource = Boolean(row?.source?.length);
+  const confidence = hasSource ? ({ high: '高', medium: '中', low: '低' })[row.confidence] || '低' : '无可用来源';
+  const definitions = entries => {
+    const list = document.createElement('dl');
+    entries.forEach(([label, value]) => { const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = value; list.append(term, detail); });
+    return list;
+  };
   const panel = document.querySelector('#muscle-detail'); panel.replaceChildren();
   const title = document.createElement('h3'); title.textContent = `${MUSCLE_NAMES[id]}详情`; panel.append(title);
-  const list = document.createElement('dl');
-  fields.forEach(([label, value]) => { const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = value; list.append(term, detail); });
-  panel.append(list);
+  const statusLine = document.createElement('p'); statusLine.className = 'muscle-status-line';
+  const statusName = document.createElement('span'); statusName.className = 'muscle-status-label'; statusName.textContent = '估计状态';
+  const badge = recoveryKey(row?.status || 'unknown'); badge.classList.add('muscle-status');
+  statusLine.append(statusName, badge);
+  const hours = document.createElement('p'); hours.className = 'muscle-hours'; hours.textContent = hoursLabel(row);
+  const basis = document.createElement('details'); basis.className = 'muscle-basis';
+  const basisSummary = document.createElement('summary');
+  const basisTitle = document.createElement('span'); basisTitle.textContent = '估计依据与来源';
+  const basisConfidence = document.createElement('small'); basisConfidence.textContent = `数据来源与可信度：${confidence}`;
+  basisTitle.append(basisConfidence); basisSummary.append(basisTitle);
+  basis.append(basisSummary, definitions([
+    ['依据', reasonText],
+    ['数据来源', hasSource ? row.source.map(source => sources[source] || '未知来源').join('、') : '无可用来源']
+  ]));
+  panel.append(statusLine, hours, definitions(fields), recentSessions(id, sessions, latestDate), basis);
+  renderPeek(id, row);
   const disclaimer = document.createElement('p'); disclaimer.className = 'recovery-disclaimer'; disclaimer.textContent = `规则模型估算，不是医学检测结果；经过 72 小时不代表已完全恢复。所选日期：${dateLabel(selectedDate)}`; panel.append(disclaimer);
 }
 

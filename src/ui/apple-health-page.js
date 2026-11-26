@@ -8,13 +8,20 @@ export function renderAppleHealthPage({ sessions = [], incoming = [], batches = 
   const planned = planHealthBackfill(sessions, incoming);
   const applied = applyBackfill(sessions, incoming, { now: '2026-11-27T09:00:00+04:00' });
   const canonical = planned?.batches?.map(batch => batch.state) || batches.map(batch => batch.state);
-  const counts = [['pending','待同步'],['backfilled','已补录'],['corrected','已校正'],['conflict','冲突待处理'],['synced','已同步']];
+  // Order matters: the first three are summary tiles, the rest are secondary chips.
+  const counts = [['pending','待补录','◷'],['corrected','已校正','↻'],['conflict','冲突待处理','⚠'],['backfilled','已补录','＋'],['synced','已同步','✓']];
   const cards = document.createElement('div'); cards.className = 'ah-cards';
-  counts.forEach(([key,label]) => {
-    const count = canonical.filter(x => x === key).length;
-    const card = document.createElement('article'); card.className = `ah-count ah-${key}`; card.dataset.ahCount = key;
-    card.textContent = `${key === 'conflict' ? '⚠' : key === 'pending' ? '◷' : key === 'corrected' ? '↻' : key === 'backfilled' ? '＋' : '✓'} ${label} ${count}`; cards.append(card);
+  const chips = document.createElement('div'); chips.className = 'ah-chips';
+  counts.forEach(([key,label,icon], index) => {
+    const count = canonical.filter(x => x === key).length, primary = index < 3;
+    const card = document.createElement(primary ? 'article' : 'span');
+    card.className = `${primary ? 'ah-tile' : 'ah-chip'} ah-count ah-count-${key}${key === 'conflict' && count > 0 ? ' is-alert' : ''}`; card.dataset.ahCount = key;
+    const mark = document.createElement('i'); mark.setAttribute('aria-hidden', 'true'); mark.textContent = icon;
+    const name = document.createElement('span'); name.className = 'ah-tile-label'; name.append(mark, document.createTextNode(` ${label}`));
+    const total = document.createElement('strong'); total.textContent = String(count);
+    card.append(name, total); (primary ? cards : chips).append(card);
   });
+  cards.append(chips);
   const historyByBatch = new Map(history.map(item => [item.batchId, item]));
   const list = document.createElement('div'); list.className = 'ah-timeline';
   const sorted = [...batches].sort((a,b) => Number(b.state === 'conflict') - Number(a.state === 'conflict') || b.date.localeCompare(a.date));
@@ -50,5 +57,5 @@ export function renderAppleHealthPage({ sessions = [], incoming = [], batches = 
   const old = root.querySelector('#ah-statuses'); if (old) old.replaceChildren(cards);
   const sourceRecords = root.querySelector('#ah-batches'); if (sourceRecords) sourceRecords.replaceChildren(list);
   const audit = root.querySelector('#ah-energy'); if (audit) audit.replaceChildren(note);
-  root.append(disclaimer);
+  root.querySelector('.ah-summary')?.after(disclaimer);
 }

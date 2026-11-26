@@ -12,6 +12,12 @@
   --carb:#8a5a18;
   --fat:#9a4f44;
   --fiber:#477049;
+  --rec-recent:#b5544d;
+  --rec-recovering:#c4702f;
+  --rec-near:#c9a22e;
+  --rec-passed:#4a8563;
+  --rec-unknown:#dde4e1;
+  --rec-hatch:#7d8c87;
   --radius-control:6px;
   --radius-chart:12px;
   --radius-section:18px;
@@ -439,9 +445,6 @@ main {
 .macro-legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 2px 0 8px; color: var(--ink); font-size: 12px; }
 .macro-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .macro-legend i { width: 10px; height: 10px; border-radius: 2px; }
-.section-meta b {
-  color: var(--ink);
-}
 .distribution {
   display: grid;
   grid-template-columns: minmax(0,1fr) auto;
@@ -1183,30 +1186,59 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
 .activity-cell.status-synced { border-color: #57758a; background: #e4edf2; }
 .legend-status,.recovery-key { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
 .legend-status .status-mark { width: 11px; height: 11px; }
+.recovery-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.recovery-figure { min-width: 0; }
 .body-view-switch { display: none; }
-.body-maps { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 18px; max-width: 760px; margin: 0 auto; }
-.body-map-panel { text-align: center; }
+.body-maps { display: grid; grid-template-columns: repeat(2, minmax(0, 290px)); justify-content: center; gap: 18px; }
+.body-map-panel { min-width: 0; text-align: center; }
 .body-map-panel h3 { margin: 0 0 6px; color: var(--slate); font-size: 15px; font-weight: 550; }
-.body-map-svg { width: min(100%, 330px); height: auto; overflow: visible; }
-.body-silhouette { fill: #e8eeeb; stroke: #82938d; stroke-width: 1.8; stroke-linejoin: round; }
-.muscle-shape { fill: #d5ded9; stroke: #fff; stroke-width: 2; cursor: pointer; transition: filter .12s ease; }
-.muscle-shape:hover,.muscle-shape:focus { filter: brightness(.88); stroke: #18312f; stroke-width: 3; }
-.muscle-shape.status-recent { fill: #b84a43; }
-.muscle-shape.status-recovering { fill: #c97837; }
-.muscle-shape.status-near { fill: #d5ad3d; }
-.muscle-shape.status-window_passed { fill: #4d8062; }
-.muscle-shape.status-unknown { fill: url(#unknown-hatch); }
-.muscle-mark { pointer-events: none; font-size: 8px; font-weight: 750; }
-.mark-recent,.mark-recovering,.mark-window_passed { fill: #fff; }
-.mark-near,.mark-unknown { fill: #18312f; }
-.recovery-legend { margin: 8px 0 16px; }
-.recovery-key i { width: 14px; height: 14px; border: 1px solid #55645f; border-radius: 4px; background: #b84a43; }
-.recovery-key.status-recovering i { background: #c97837; }
-.recovery-key.status-near i { background: #d5ad3d; }
-.recovery-key.status-window_passed i { background: #4d8062; }
-.recovery-key.status-unknown i { background: repeating-linear-gradient(135deg,#f5f7f6 0 3px,#879590 3px 4px); }
-.muscle-detail { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #f8faf9; }
-.muscle-detail h3 { margin: 0 0 10px; }
+.body-map-svg { max-width: 290px; margin: 0 auto; }
+/* Artwork regions are drawn at 3x viewBox units: a stroke-width of 9 renders as 3 viewBox units. */
+.body-silhouette path { fill: #e9eeec; stroke: #a3b2ad; stroke-width: 5; stroke-linejoin: round; }
+.body-map-svg .muscle-neutral { fill: #d3dcd8; stroke: #fff; stroke-width: 9; stroke-linejoin: round; pointer-events: none; }
+.body-map-svg .muscle-hit-area { fill: transparent; stroke: transparent; stroke-linejoin: round; pointer-events: all; cursor: pointer; }
+.muscle-target { cursor: pointer; }
+.body-map-svg .muscle-fill { stroke: #fff; stroke-width: 9; stroke-linejoin: round; pointer-events: visiblePainted; transition: filter .12s ease; }
+/* Unknown fills take their hatch from the per-view SVG pattern, so no CSS fill is set for them. */
+.muscle-fill.status-recent { fill: var(--rec-recent); }
+.muscle-fill.status-recovering { fill: var(--rec-recovering); }
+.muscle-fill.status-near { fill: var(--rec-near); }
+.muscle-fill.status-window_passed { fill: var(--rec-passed); }
+.hatch-base { fill: var(--rec-unknown); }
+.hatch-line { stroke: var(--rec-hatch); stroke-width: 6; }
+.muscle-target:hover .muscle-fill { filter: brightness(.92); }
+/* Stroke painted under the fill: only the outer half shows, so thin muscles keep their status colour. */
+.body-map-svg .muscle-target.is-selected .muscle-fill { paint-order: stroke; stroke: var(--ink); stroke-width: 18; }
+.body-map-svg .muscle-target:focus-visible { outline: none; }
+.body-map-svg .muscle-target:focus-visible .muscle-fill { stroke: #1d4ed8; stroke-width: 21; }
+.recovery-legend { justify-content: center; margin: 0 0 10px; }
+.recovery-key i { width: 14px; height: 14px; border: 1px solid rgba(24,49,47,.35); border-radius: 4px; }
+.recovery-key.status-recent i { background: var(--rec-recent); }
+.recovery-key.status-recovering i { background: var(--rec-recovering); }
+.recovery-key.status-near i { background: var(--rec-near); }
+.recovery-key.status-window_passed i { background: var(--rec-passed); }
+.recovery-key.status-unknown i { background: repeating-linear-gradient(135deg,var(--rec-unknown) 0 3px,var(--rec-hatch) 3px 4px); }
+.muscle-detail { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #f8faf9; overflow-wrap: anywhere; }
+.muscle-detail h3 { margin: 0 0 6px; }
+.muscle-status { font-weight: 600; }
+.muscle-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; }
+.muscle-status-label { color: var(--slate); font-size: 13px; }
+.muscle-status-line .recovery-key { font-size: 19px; }
+.muscle-hours { margin: 2px 0 12px; font-size: 17px; font-weight: 600; }
+.muscle-basis { margin-top: 12px; border-top: 1px solid var(--line); }
+.muscle-basis > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; font-weight: 650; cursor: pointer; }
+.muscle-basis summary small { display: block; color: var(--slate); font-size: 12px; font-weight: 400; }
+.muscle-basis dl { padding-top: 4px; font-size: 14px; }
+.muscle-recent { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.muscle-recent h4 { margin: 0 0 4px; font-size: 14px; }
+.muscle-recent ol { margin: 0; padding: 0; list-style: none; }
+.muscle-recent li { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 10px; padding: 7px 0; font-size: 14px; }
+.muscle-recent li + li { border-top: 1px solid #e3ebe8; }
+.muscle-recent time { color: var(--slate); }
+.muscle-recent p { margin: 0; }
+@media (min-width: 1200px) {
+  .recovery-layout { grid-template-columns: minmax(540px, 600px) minmax(0, 1fr); gap: 24px; }
+}
 .muscle-detail dl { display: grid; grid-template-columns: minmax(110px, .35fr) 1fr; gap: 6px 14px; margin: 0; }
 .muscle-detail dt { color: var(--slate); }
 .muscle-detail dd { margin: 0; font-weight: 550; }
@@ -1258,8 +1290,12 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
   .body-view-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 420px; margin: 0 auto 10px; padding: 4px; border-radius: 8px; background: #e7eeeb; }
   .body-view-switch button { min-height: 44px; border: 0; border-radius: 6px; color: var(--slate); background: transparent; }
   .body-view-switch button.selected { color: #fff; background: var(--pine); }
-  .body-maps { grid-template-columns: 1fr; max-width: 420px; }
+  .body-maps { grid-template-columns: minmax(0, 290px); }
   .body-map-panel h3 { display: none; }
+  /* Tighter chrome keeps the whole figure on the first phone screen. */
+  #workout .section-heading { margin-bottom: 10px; }
+  #workout .section-heading .eyebrow { display: none; }
+  .recovery-panel > .panel-title { margin-bottom: 8px; }
   .coverage-filters { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .coverage-row { grid-template-columns: 1fr 1fr; gap: 4px 8px; }
   .coverage-row span:last-child { text-align: right; }
@@ -1284,13 +1320,34 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
   .workout-row em { grid-column: 2; grid-row: 1 / span 2; }
 }
 .module [tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
-.ah-cards { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; margin: 16px 0; }
-.ah-count,.ah-row { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
-.ah-count { font-weight: 700; }
-.ah-conflict { border-color: #b84a43; background: #fff7f5; }
-.ah-pending { border-color: #b88430; background: #fffaf0; }
-.ah-corrected,.ah-backfilled,.ah-synced { border-color: #73958a; }
-.ah-row { margin: 10px 0; }
+.ah-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+.ah-statuses,.ah-cards { display: contents; }
+.ah-tile { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.ah-tile-label { color: var(--slate); font-size: 14px; }
+.ah-tile-label i { font-style: normal; }
+.ah-tile strong { font-size: 30px; line-height: 1.15; font-weight: 650; overflow-wrap: anywhere; }
+.ah-tile-sync strong { font-size: 18px; line-height: 1.35; }
+.ah-tile.is-alert { border-color: #b5544d; border-width: 2px; background: #fff5f3; }
+.ah-tile.is-alert .ah-tile-label,.ah-tile.is-alert strong { color: #8f302b; }
+.ah-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.ah-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.ah-chip .ah-tile-label,.ah-chip strong { font-size: 13px; }
+.ah-fold > summary,.workout-rules > summary { min-height: 44px; display: flex; align-items: center; font-weight: 650; cursor: pointer; }
+.ah-fold[open] > summary,.workout-rules[open] > summary { margin-bottom: 12px; }
+.ah-fold .panel-title:not(:first-of-type) { margin-top: 22px; }
+.ah-row { margin: 10px 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.ah-row.ah-conflict { border-color: #b84a43; background: #fff7f5; }
+.ah-row.ah-pending { border-color: #b88430; background: #fffaf0; }
+.ah-row.ah-corrected,.ah-row.ah-backfilled,.ah-row.ah-synced { border-color: #73958a; }
+.workout-rules { margin-top: 12px; }
+.rules-summary dl { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 8px 14px; margin: 0 0 18px; font-size: 14px; }
+.rules-summary dt { color: var(--slate); }
+.rules-summary dd { margin: 0; }
+.rules-mapping table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+.rules-mapping caption { padding-bottom: 6px; text-align: left; font-weight: 650; }
+.rules-mapping th,.rules-mapping td { padding: 8px 6px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.rules-mapping thead th { color: var(--slate); font-weight: 550; }
+.rules-mapping tbody th { font-weight: 600; }
 .ah-row h3 { margin: 0 0 8px; }
 .ah-row p,.ah-energy-note,.ah-demo-note { overflow-wrap: anywhere; }
 .ah-demo-note,.demo-note { padding: 12px; border-radius: 8px; background: #f5eee0; }
@@ -1306,7 +1363,12 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
 .daily-hint-list { padding-left: 22px; }
 .daily-hint-list li { margin: 10px 0; }
 .daily-hint-list small { display: block; color: var(--slate); }
-@media (max-width: 700px) { .ah-cards { grid-template-columns: repeat(2,minmax(0,1fr)); } .ah-count:last-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .ah-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .ah-tile { padding: 12px; }
+  .rules-summary dl { grid-template-columns: minmax(0,1fr); gap: 2px; }
+  .rules-summary dd { margin-bottom: 8px; }
+}
 
 /* V2.1 review fixes: hit areas, readable state marks and compact mobile training order. */
 :focus:not(:focus-visible) { outline: none; }
@@ -1316,31 +1378,6 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
 .skip { min-height: 44px; }
 .source-records,.audit-list { margin-top: 12px; }
 #nutrition-source-summary { margin-top: 14px; }
-.body-map-panel { min-width: 0; }
-.body-map-svg { max-width: 330px; }
-.body-silhouette { fill: #e8eeeb; stroke: #758680; stroke-width: 1.6; stroke-linejoin: round; }
-.body-detail-line { fill: none; stroke: #a1aea9; stroke-width: 1.1; stroke-linecap: round; }
-.muscle-target { cursor: pointer; }
-.muscle-target:focus { outline: none; }
-.muscle-target:focus .muscle-hit,.muscle-target:hover .muscle-hit { stroke: #203a36; stroke-width: 2.2; filter: brightness(.92); }
-.muscle-hit { stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; pointer-events: auto; }
-.muscle-hit-area { fill: none; stroke: transparent; stroke-width: 10; stroke-linejoin: round; pointer-events: stroke; }
-.muscle-hit.status-recent { fill: #df9b94; }
-.muscle-hit.status-recovering { fill: #c97837; }
-.muscle-hit.status-near { fill: #d5ad3d; }
-.muscle-hit.status-window_passed { fill: #7ea98d; }
-.muscle-hit.status-unknown { fill: url(#unknown-hatch-front); }
-.view-back .muscle-hit.status-unknown { fill: url(#unknown-hatch-back); }
-.muscle-mark { pointer-events: none; font-size: 12px; font-weight: 750; }
-.mark-recent,.mark-recovering,.mark-near,.mark-window_passed,.mark-unknown { fill: #182b2c; }
-.mark-recovering { fill: #101e1f; }
-.recovery-key.status-recent i { background: #df9b94; }
-.recovery-key.status-window_passed i { background: #7ea98d; }
-.recovery-key.status-recent i { background: #b84a43; }
-.recovery-key.status-recovering i { background: #c97837; }
-.recovery-key.status-near i { background: #d5ad3d; }
-.recovery-key.status-window_passed i { background: #4d8062; }
-.recovery-key.status-unknown i { background: repeating-linear-gradient(135deg,#f5f7f6 0 3px,#687872 3px 4px); }
 .workout-fold { margin-top: 12px; }
 .workout-fold > summary { min-height: 44px; display: flex; align-items: center; font-weight: 650; cursor: pointer; }
 .trend-graph { min-width: 0; overflow: hidden; }
@@ -1348,12 +1385,9 @@ main { grid-column: 2; width: min(100%, 1440px); padding: 34px clamp(24px, 4vw, 
 .diet-grid,.trend-grid,.nutrient-layout,.overview-grid,#training-trends { grid-template-columns: repeat(2,minmax(0,1fr)); }
 #main { min-width: 0; }
 main,.module,.panel,.food-details-panel,.list-panel { min-width: 0; }
-.ah-backfill-panel { margin-top: 14px; }
 .filter-note { grid-column: 1/-1; margin: 2px 0 0; color: var(--slate); }
 .activity-heatmap { margin-top: -6px; }
 @media(max-width:1023px) {
-  .body-maps { grid-template-columns: 1fr; }
-  .body-map-panel h3 { display: none; }
   .mobile-nav a { font-size: 12px; }
 }
 @media(max-width:700px) {
@@ -1367,4 +1401,46 @@ main,.module,.panel,.food-details-panel,.list-panel { min-width: 0; }
   .recovery-legend { gap: 8px 10px; }
   .coverage-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .coverage-filters label:last-child { grid-column: 1/-1; }
+}
+
+/* Muscle map review fixes: legend, name chips, tap feedback, focus and expandable folds. */
+.legend-neutral { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.legend-neutral i,.muscle-swatch { flex: none; width: 14px; height: 14px; border: 1px solid rgba(24,49,47,.35); border-radius: 4px; }
+.legend-neutral i { background: #d3dcd8; }
+.muscle-swatch.status-recent { background: var(--rec-recent); }
+.muscle-swatch.status-recovering { background: var(--rec-recovering); }
+.muscle-swatch.status-near { background: var(--rec-near); }
+.muscle-swatch.status-window_passed { background: var(--rec-passed); }
+.muscle-swatch.status-unknown { background: repeating-linear-gradient(135deg,var(--rec-unknown) 0 3px,var(--rec-hatch) 3px 4px); }
+.muscle-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+.muscle-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 13px; cursor: pointer; }
+.muscle-chip[aria-pressed="true"] { border-color: var(--pine); background: #e8f0ed; box-shadow: inset 0 0 0 1px var(--pine); font-weight: 650; }
+.muscle-peek { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 40; display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 8px 8px 12px; border: 1px solid var(--pine); border-radius: 10px; background: var(--paper); box-shadow: 0 4px 14px rgba(24,49,47,.18); }
+.muscle-peek-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; line-height: 1.35; }
+.muscle-peek-text span { font-size: 14px; font-weight: 600; }
+.muscle-peek-text small { flex-basis: 100%; color: var(--slate); font-size: 12px; }
+.muscle-peek button { flex: none; }
+.module [data-page-title]:focus { outline: none; }
+.ah-fold > summary::after,.workout-fold > summary::after,.workout-rules > summary::after,.muscle-basis > summary::after { content: ''; flex: none; width: 9px; height: 9px; margin: 0 4px 0 auto; border-right: 2px solid var(--pine); border-bottom: 2px solid var(--pine); transform: rotate(45deg); }
+.ah-fold[open] > summary::after,.workout-fold[open] > summary::after,.workout-rules[open] > summary::after,.muscle-basis[open] > summary::after { transform: rotate(225deg); }
+@media (max-width: 600px) {
+  .recovery-legend { gap: 4px 10px; margin-bottom: 8px; }
+  /* Height-bound so head to feet fits one phone screen with the title, view toggle and legend. */
+  .body-map-svg { width: auto; max-width: 100%; height: max(300px, min(540px, calc(100svh - 420px))); } /* TARS: 人体整体落在底部提示条之上 */
+}
+@media (min-width: 1024px) {
+  .muscle-peek { display: none; }
+}
+@media (min-width: 1200px) {
+  #workout .section-heading { margin-bottom: 12px; }
+  .recovery-panel { padding-block: 14px; margin-bottom: 12px; }
+  .recovery-panel > .panel-title { margin-bottom: 8px; }
+  .recovery-legend { gap: 4px 12px; margin-bottom: 8px; }
+  .body-maps { grid-template-columns: repeat(2, minmax(0, 245px)); }
+  .body-map-panel h3 { margin-bottom: 4px; }
+  .body-map-svg { max-width: 245px; }
+  .muscle-chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 540px; margin-inline: auto; gap: 4px; margin-top: 8px; } /* TARS: 桌面 5×2 整齐排列 */
+  .recovery-legend .recovery-key, .recovery-legend .legend-neutral { font-size: 13px; }
+  .muscle-chip { gap: 4px; padding: 4px 6px; font-size: 12px; }
+  .muscle-chip .muscle-swatch { width: 10px; height: 10px; border-radius: 3px; }
 }
