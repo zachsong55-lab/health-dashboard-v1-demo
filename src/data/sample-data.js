@@ -40,3 +40,60 @@ export const incomingWorkouts = [
   {id:'ah-w23',record_type:'workout',local_date:'2026-11-23',start_time:'18:00',workout_type:'力量训练',duration_min:52,activity_kcal:310,session_state:'COMPLETED'}
 ];
 export const bodyLog = days.filter(day => day.weight != null).map(day => ({local_date:day.date,value:day.weight,unit:'kg',metric:'体重'}));
+
+// 以下均为 V2.1 虚构演示数据，沿用 Asia/Dubai 本地日期。
+export const exerciseCatalog = [
+  'bench_press', 'pull_up', 'squat', 'lateral_raise', 'row', 'deadlift', 'overhead_press', 'push_up',
+  'lat_pulldown', 'lunge', 'leg_press', 'leg_curl', 'calf_raise', 'plank', 'biceps_curl', 'triceps_pushdown'
+];
+export const trainingSessions = [
+  { id: 'demo-session-13', date: '2026-11-13', start: '18:00', end: '18:50', type: 'strength', source: 'user_confirmed', status: 'confirmed', exercises: [{ exerciseId: 'bench_press', sets: [{ reps: 8, weightKg: 45, rpe: 7 }, { reps: 8, weightKg: 45, rpe: 8 }, { reps: 8, weightKg: 45, rpe: 8 }] }] },
+  { id: 'demo-session-15', date: '2026-11-15', start: '17:30', end: '18:20', type: 'strength', source: 'user_confirmed', status: 'confirmed', exercises: [{ exerciseId: 'squat', sets: [{ reps: 8, weightKg: 60, rpe: 8 }, { reps: 8, weightKg: 60, rpe: 8 }, { reps: 8, weightKg: 60, rpe: 8 }] }] },
+  { id: 'demo-session-17', date: '2026-11-17', start: '18:10', end: '18:55', type: 'strength', source: 'estimated', status: 'estimated', exercises: [{ exerciseId: 'row', sets: [{ reps: 10, weightKg: 35 }, { reps: 10, weightKg: 35 }, { reps: 10, weightKg: 35 }] }] },
+  { id: 'demo-session-18a', date: '2026-11-18', start: '17:00', end: '17:45', type: 'strength', source: 'unknown', status: 'unknown', exercises: [] },
+  { id: 'demo-session-18b', date: '2026-11-18', start: '17:30', end: '18:00', type: 'strength', source: 'unknown', status: 'unknown', exercises: [] },
+  { id: 'demo-session-20', date: '2026-11-20', start: '18:00', end: '18:48', durationMin: 48, activityKcal: 260, type: 'strength', source: 'estimated', status: 'estimated', exercises: [{ exerciseId: 'deadlift', sets: [{ reps: 6, weightKg: 80 }, { reps: 6, weightKg: 80 }] }] },
+  { id: 'demo-session-22', date: '2026-11-22', start: '08:00', end: '08:36', durationMin: 36, activityKcal: 190, type: 'walk', source: 'apple_health', status: 'synced', exercises: [] },
+  { id: 'demo-session-23', date: '2026-11-23', start: '18:00', end: '18:52', durationMin: 52, activityKcal: 310, type: 'strength', source: 'apple_health', status: 'synced', originalWorkoutId: 'ah-w23', exercises: [{ exerciseId: 'lateral_raise', sets: [{ reps: 12, weightKg: 6 }, { reps: 12, weightKg: 6 }] }] },
+  { id: 'demo-session-25', date: '2026-11-25', start: '17:00', end: '17:42', type: '骑行', durationMin: 42, activityKcal: 330, source: 'user_confirmed', status: 'confirmed', exercises: [] },
+  { id: 'demo-session-26', date: '2026-11-26', start: '18:10', end: '19:05', durationMin: 55, activityKcal: 340, type: 'strength', source: 'user_confirmed', status: 'confirmed', originalWorkoutId: 'ah-w26', user_confirmed_fields: ['exercises'], exercises: [{ exerciseId: 'pull_up', sets: [{ reps: 8 }, { reps: 7 }, { reps: 6 }] }, { exerciseId: 'bench_press', sets: [{ reps: 8, weightKg: 50, rpe: 8 }, { reps: 8, weightKg: 50, rpe: 8 }] }] }
+];
+export const dayLogs = Array.from({ length: 14 }, (_, index) => {
+  const date = `2026-11-${String(index + 13).padStart(2, '0')}`;
+  const session = trainingSessions.find(item => item.date === date);
+  return {
+    date,
+    confirmedWorkout: !!session && session.status === 'confirmed',
+    confirmedRest: [1, 6, 11].includes(index),
+    estimatedSessionIds: session?.status === 'estimated' ? [session.id] : [],
+    appleHealthPendingIds: date === '2026-11-18' ? ['demo-batch-pending'] : [],
+    syncedSessionIds: session?.status === 'synced' ? [session.id] : [],
+    hasReliableActivityEvidence: !!session
+  };
+});
+export const snacks = [{
+  id: 'demo-snack-1', local_date: '2026-11-26', local_time: '16:20', meal_label: '加餐',
+  foodItems: [{
+    id: 'demo-snack-food', name: '香蕉', nutrients: {
+      kcal: { value: 105, unit: 'kcal', source: 'database' },
+      protein: { value: 1.3, unit: 'g', source: 'database' },
+      carbs: { value: 27, unit: 'g', source: 'confirmed' },
+      fat: { value: null, unit: 'g', source: 'unknown' }
+    }
+  }]
+}, {
+  id: 'demo-snack-photo', local_date: '2026-11-25', local_time: '15:10', meal_label: '加餐',
+  foodItems: [{ id: 'demo-photo-food', name: '坚果', nutrients: {
+    kcal: { value: 160, unit: 'kcal', source: 'photo' }, protein: { value: 5, unit: 'g', source: 'photo' },
+    carbs: { value: 6, unit: 'g', source: 'photo' }, fat: { value: 14, unit: 'g', source: 'photo' }
+  } }]
+}];
+export const ahBackfillBatches = [
+  { id: 'demo-batch-corrected', date: '2026-11-23', state: 'corrected', source: 'apple_health', originalWorkoutId: 'ah-w23', candidateSessionIds: ['demo-session-23'], before: { duration: 50, active_kcal: 275 }, after: { duration: 52, active_kcal: 310 }, history: [{ at: '2026-11-24T09:00:00+04:00', field: 'active_kcal', before: 275, after: 310, source: 'apple_health' }] },
+  { id: 'demo-batch-backfilled', date: '2026-11-20', state: 'backfilled', source: 'apple_health', originalWorkoutId: 'demo-ah-20', candidateSessionIds: ['demo-session-20'], before: { duration: 48 }, after: { duration: 50 } },
+  { id: 'demo-batch-conflict', date: '2026-11-18', state: 'conflict', source: 'apple_health', candidateSessionIds: ['demo-session-18a', 'demo-session-18b'] },
+  { id: 'demo-batch-pending', date: '2026-11-18', state: 'pending', source: 'apple_health', candidateSessionIds: [] }
+];
+export const ahHistory = ahBackfillBatches.flatMap(batch =>
+  (batch.history || []).map(item => ({ ...item, batchId: batch.id, date: batch.date }))
+);

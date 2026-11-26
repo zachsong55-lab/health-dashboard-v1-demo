@@ -1,15 +1,24 @@
-import { days, goals, nutrientMeta, workouts as sampleWorkouts, syncRecords, incomingHealth, incomingWorkouts, bodyLog } from './data/sample-data.js';
+import { days, goals, nutrientMeta, workouts as sampleWorkouts, syncRecords, incomingHealth, incomingWorkouts, trainingSessions, dayLogs, snacks, ahBackfillBatches, ahHistory } from './data/sample-data.js';
 import { reconcileAppleHealth } from './domain/reconcile.js';
-import { summarizeNutrients, summarizeFoodEntries, rollingDays, latestWeight, formatDuration } from './domain/selectors.js';
-import { lineChart, heatmap, bars, timeline, initChartTooltip } from './charts/svg-charts.js';
+import { summarizeNutrients, summarizeFoodEntries, rollingDays, formatDuration } from './domain/selectors.js';
+import { lineChart, bars, timeline, initChartTooltip } from './charts/svg-charts.js';
+import { initRouter } from './ui/router.js';
+import { renderWorkoutPage } from './ui/workout-page.js';
+import { renderFoodPage as renderFoodModule } from './ui/food-page.js';
+import { renderNutritionPage as renderNutritionModule } from './ui/nutrition-page.js';
+import { renderAppleHealthPage as renderAppleHealthModule } from './ui/apple-health-page.js';
+import { renderDailyHints as renderHintsModule } from './ui/daily-hints.js';
+import { getWeeklyCoverage } from './domain/weekly-coverage.js';
+import { estimateMuscleRecovery } from './domain/recovery.js';
+import { getDayStatus } from './domain/day-status.js';
+import { analyzeNutritionWindow } from './domain/nutrition-window.js';
 
 const $ = selector => document.querySelector(selector);
+const pageVisible = page => { const node = document.querySelector(`[data-page="${page}"]`); return Boolean(node && !node.hidden); };
 const number = value => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value);
 const dates = days.map(day => day.date);
-const dateSelect = $('[data-control="date-switch"]');
+const dateSelects = [...document.querySelectorAll('[data-control="date-switch"]')];
 let selectedDate = dates.at(-1);
-let workoutDate = null;
-let workoutType = null;
 const sourceLabels = { confirmed: '实际确认', label: '包装标签', database: '数据库估算', photo: '照片估算', unknown: '未知' };
 const operationLabels = { CREATE: '新增', UPDATE: '更新', SKIP_DUPLICATE: '跳过重复项', CONFLICT: '冲突待处理', FAILED: '失败', READ_CHECK: '读取核对' };
 const incomingSyncTime = '2026-11-26T20:00:00+04:00';
@@ -36,11 +45,10 @@ function render() {
   const day = selectedDay();
   const summary = summaryFor(day);
   const windowDays = rollingDays(days, selectedDate);
-  const weights = windowDays.map(item => item.weight).filter(Number.isFinite);
-  const recentWeight = latestWeight(bodyLog, selectedDate);
   const burn = resolvedBurn.find(record => record.local_date === selectedDate)?.value ?? day.burn;
   const gap = summary.kcal == null || burn == null ? null : burn - summary.kcal;
   setDateText();
+  renderWorkoutPage({ selectedDate, sessions: trainingSessions, dayLogs, legacyWorkouts: workouts });
   setMetric('intake-kcal', displayValue(summary.kcal));
   $('[data-metric-note="intake-kcal"]').textContent = summary.caloriesRange ? `范围 ${displayValue(summary.caloriesRange.min)}–${displayValue(summary.caloriesRange.max)}` : '食物项汇总';
   setMetric('burn-kcal', displayValue(burn));
@@ -50,39 +58,14 @@ function render() {
   setMetric('eating-first', summary.first || '未知');
   setMetric('eating-last', summary.last || '未知');
   setMetric('eating-duration', formatDuration(summary.durationMinutes));
-  setMetric('week-workouts', workouts.filter(workout => windowDays.some(item => item.date === workout.local_date)).length);
-  setMetric('latest-weight', recentWeight ? `${recentWeight.value.toFixed(1)} kg，${recentWeight.local_date}` : '未知');
-  setMetric('weight-avg7', weights.length ? `${(weights.reduce((sum, value) => sum + value, 0) / weights.length).toFixed(1)} kg，${weights.length}/7 天` : '未知');
   document.querySelectorAll('[data-range-label]').forEach(node => { node.textContent = rangeLabel(windowDays); });
 
   const intakeSeries = windowDays.map(item => summaryFor(item).kcal);
   const burnSeries = windowDays.map(item => resolvedBurn.find(record => record.local_date === item.date)?.value ?? item.burn);
   const chartWidth = selector => $(selector).clientWidth;
-  $('#overview-chart').replaceChildren(lineChart([intakeSeries, burnSeries], windowDays.map(item => item.date), '每日摄入与总消耗热量趋势', 'kcal', 'kcal-overview', ['#ffffff', '#bdd5d2'], [windowDays.map(() => '食物记录汇总'), windowDays.map(() => '健康记录')], chartWidth('#overview-chart')));
-  drawHeatmap(windowDays);
-  const trainingCounts = ['力量训练', '快走', '骑行'].map(label => ({ label, value: workouts.filter(workout => workout.workout_type === label).length, unit: '次', source: '训练记录', date: `${windowDays[0].date}–${selectedDate}` }));
-  $('#distribution').replaceChildren(bars(trainingCounts, 'training-distribution', '训练类型分布', label => {
-    workoutType = workoutType === label ? null : label;
-    workoutDate = null;
-    updateFilterButtons();
-    drawWorkouts();
-    drawHeatmap(windowDays);
-  }, chartWidth('#distribution'), ['#155a52', '#547a68', '#755f91']));
-  const trainingMinutes = windowDays.map(item => workouts.filter(workout => workout.local_date === item.date).reduce((sum, workout) => sum + (workout.duration_min || 0), 0));
-  const trainingKcal = windowDays.map(item => workouts.filter(workout => workout.local_date === item.date).reduce((sum, workout) => sum + (workout.activity_kcal || 0), 0));
-  const trendRoot = $('#training-trends'); trendRoot.replaceChildren();
-  [
-    ['训练时长', '分钟', 'training-time-trend', trainingMinutes, '#155a52'],
-    ['活动热量', 'kcal', 'training-kcal-trend', trainingKcal, '#755f91']
-  ].forEach(([heading, unit, id, values, color]) => {
-    const card = document.createElement('article'); card.className = 'trend-chart-card';
-    const title = document.createElement('h4'); title.textContent = `${heading}（${unit}）`; card.append(title);
-    trendRoot.append(card);
-    card.append(lineChart(values, windowDays.map(item => item.date), `每日${heading}趋势，${unit}`, unit, id, color, windowDays.map(() => '训练记录'), card.clientWidth));
-  });
-  drawWorkouts();
+  if (pageVisible('overview')) $('#overview-chart').replaceChildren(lineChart([intakeSeries, burnSeries], windowDays.map(item => item.date), '每日摄入与总消耗热量趋势', 'kcal', 'kcal-overview', ['#ffffff', '#bdd5d2'], [windowDays.map(() => '食物记录汇总'), windowDays.map(() => '健康记录')], chartWidth('#overview-chart')));
+  else $('#overview-chart').replaceChildren();
   $('#meal-total').textContent = displayValue(summary.kcal, 'kcal');
-  const mealChart = bars(summary.meals.map(meal => ({ label: meal.label, value: meal.kcal, unit: 'kcal', source: '食物项汇总', date: selectedDate })), 'meal-distribution', '当日三餐热量', null, chartWidth('#meal-bars'), ['#155a52']);
   const macroLegend = document.createElement('div'); macroLegend.className = 'macro-legend';
   [['蛋白', 'var(--protein)'], ['碳水', 'var(--carb)'], ['脂肪', 'var(--fat)']].forEach(([label, color]) => {
     const item = document.createElement('span'); const swatch = document.createElement('i');
@@ -95,16 +78,21 @@ function render() {
     const share = document.createElement('small'); share.textContent = summary.kcal ? `${Math.round(meal.kcal / summary.kcal * 100)}%` : '未知';
     const macroTrack = document.createElement('span'); macroTrack.className = 'meal-macros';
     const macros = [['protein', '蛋白质', '#695384'], ['carbs', '碳水', '#8a5a18'], ['fat', '脂肪', '#9a4f44']];
-    const macroValues = macros.map(([key]) => summarizeNutrients(meal.items || [], key).value || 0);
-    const macroTotal = macroValues.reduce((sum, value) => sum + value, 0);
-    macros.forEach(([key, name, color], index) => { const segment = document.createElement('i'); segment.style.width = macroTotal ? `${macroValues[index] / macroTotal * 100}%` : '0%'; segment.style.backgroundColor = color; segment.title = `${name} ${number(macroValues[index])} g`; segment.setAttribute('aria-label', segment.title); macroTrack.append(segment); });
+    const macroValues = macros.map(([key]) => summarizeNutrients(meal.items || [], key).value);
+    const macroTotal = macroValues.every(Number.isFinite) ? macroValues.reduce((sum, value) => sum + value, 0) : null;
+    macros.forEach(([key, name, color], index) => { const segment = document.createElement('i'); segment.style.width = macroTotal ? `${macroValues[index] / macroTotal * 100}%` : '0%'; segment.style.backgroundColor = color; segment.title = `${name} ${macroValues[index] == null ? '未知' : `${number(macroValues[index])} g`}`; segment.setAttribute('aria-label', segment.title); macroTrack.append(segment); });
     row.append(label, amount, share, macroTrack); return row;
   });
-  $('#meal-bars').replaceChildren(mealChart, macroLegend, ...mealRows);
+  if (pageVisible('overview')) {
+    const mealChart = bars(summary.meals.map(meal => ({ label: meal.label, value: meal.kcal, unit: 'kcal', source: '食物项汇总', date: selectedDate })), 'meal-distribution', '当日三餐热量', null, chartWidth('#meal-bars'), ['#155a52']);
+    $('#meal-bars').replaceChildren(mealChart, macroLegend, ...mealRows);
+  } else { $('#meal-bars').replaceChildren(); $('#timeline').replaceChildren(); }
   $('#timeline-window').textContent = `${summary.first || '未知'} 至 ${summary.last || '未知'}，${formatDuration(summary.durationMinutes)}`;
-  $('#timeline').replaceChildren(timeline(summary.meals, selectedDate, chartWidth('#timeline')));
-  $('#kcal-chart').replaceChildren(lineChart(windowDays.map(item => summaryFor(item).kcal), windowDays.map(item => item.date), '每日摄入热量趋势', 'kcal', 'kcal-trend', '#155a52', windowDays.map(() => '食物记录汇总'), chartWidth('#kcal-chart')));
-  $('#protein-chart').replaceChildren(lineChart(windowDays.map(item => summaryFor(item).protein), windowDays.map(item => item.date), '每日蛋白质趋势', 'g', 'protein-trend', '#695384', windowDays.map(() => '食物记录汇总'), chartWidth('#protein-chart')));
+  if (pageVisible('overview')) $('#timeline').replaceChildren(timeline(summary.meals, selectedDate, chartWidth('#timeline')));
+  if (pageVisible('food')) {
+    $('#kcal-chart').replaceChildren(lineChart(windowDays.map(item => summaryFor(item).kcal), windowDays.map(item => item.date), '每日摄入热量趋势', 'kcal', 'kcal-trend', '#155a52', windowDays.map(() => '食物记录汇总'), chartWidth('#kcal-chart')));
+    $('#protein-chart').replaceChildren(lineChart(windowDays.map(item => summaryFor(item).protein), windowDays.map(item => item.date), '每日蛋白质趋势', 'g', 'protein-trend', '#695384', windowDays.map(() => '食物记录汇总'), chartWidth('#protein-chart')));
+  } else { $('#kcal-chart').replaceChildren(); $('#protein-chart').replaceChildren(); }
   const windowFill = $('.window-track span');
   const firstMinutes = summary.first ? Number(summary.first.slice(0, 2)) * 60 + Number(summary.first.slice(3, 5)) : null;
   const lastMinutes = summary.last ? Number(summary.last.slice(0, 2)) * 60 + Number(summary.last.slice(3, 5)) : null;
@@ -125,37 +113,22 @@ function render() {
   });
   renderNutrients(windowDays);
   renderSync();
-}
-
-function updateFilterButtons() {
-  document.querySelectorAll('[data-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.filter === workoutType)));
-}
-
-function drawHeatmap(windowDays = rollingDays(days, selectedDate)) {
-  $('#heatmap').replaceChildren(heatmap(workouts, windowDays.map(item => item.date), date => {
-    workoutDate = workoutDate === date ? null : date;
-    workoutType = null;
-    drawWorkouts();
-    drawHeatmap(windowDays);
-  }, workoutDate, $('#heatmap').clientWidth));
-}
-
-function drawWorkouts() {
-  const list = workouts.filter(workout => (!workoutDate || workout.local_date === workoutDate) && (!workoutType || workout.workout_type === workoutType)).sort((a, b) => b.local_date.localeCompare(a.local_date));
-  $('#workout-filter-label').textContent = `${workoutDate || '最近训练'}${workoutType ? `，${workoutType}` : ''}，显示时长与活动热量`;
-  const root = $('#workout-list');
-  root.replaceChildren();
-  if (!list.length) { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = '所选条件没有训练记录'; root.append(empty); }
-  list.forEach(workout => {
-    const row = document.createElement('article'); row.className = 'workout-row';
-    const time = document.createElement('time'); time.textContent = workout.local_date;
-    const title = document.createElement('strong'); title.textContent = workout.workout_type;
-    const duration = document.createElement('span'); duration.textContent = `${workout.duration_min ?? '未知'} 分钟`;
-    const kcal = document.createElement('span'); kcal.textContent = displayValue(workout.activity_kcal, 'kcal');
-    const source = document.createElement('em'); source.className = 'tag'; source.textContent = workout.data_source === 'apple_health' ? 'Apple Health 实测' : workout.data_source === 'manual' ? '手动记录' : '估算';
-    row.append(time, title, duration, kcal, source); root.append(row);
+  renderFoodModule({ day, snacks });
+  renderNutritionModule({ day });
+  renderAppleHealthModule({ sessions: trainingSessions, incoming: incomingWorkouts, batches: ahBackfillBatches, history: ahHistory, selectedDate });
+  renderHintsModule({
+    today: selectedDate,
+    dayStatus: getDayStatus(dayLogs.find(item => item.date === selectedDate)),
+    coverage: getWeeklyCoverage(trainingSessions.filter(item => item.date <= selectedDate), selectedDate),
+    recovery: estimateMuscleRecovery(trainingSessions.filter(item => item.date <= selectedDate), `${selectedDate}T20:00:00+04:00`),
+    dayLogs: dayLogs.filter(item => item.date <= selectedDate),
+    weekStart: getWeeklyCoverage(trainingSessions, selectedDate).weekStart,
+    weekEnd: getWeeklyCoverage(trainingSessions, selectedDate).weekEnd,
+    protein: summary.protein,
+    proteinTarget: goals.protein,
+    nutritionWindow: analyzeNutritionWindow(day.foodEntries),
+    pendingCount: ahBackfillBatches.filter(batch => batch.date <= selectedDate && ['pending', 'conflict'].includes(batch.state)).length
   });
-  updateFilterButtons();
 }
 
 function coverageText(summary) { return `覆盖 ${summary.known}/${summary.total}${summary.known !== summary.total ? '，部分未知' : ''}`; }
@@ -195,7 +168,8 @@ function renderNutrients(windowDays) {
   });
   const trendValues = windowDays.map(day => summaryFor(day).nutrients[selectedMeta.key]?.value ?? null);
   const sources = windowDays.map(day => { const stat = summaryFor(day).nutrients[selectedMeta.key]; return `覆盖 ${stat?.known ?? 0}/${stat?.total ?? 0}`; });
-  $('#nutrient-chart').replaceChildren(lineChart(trendValues, windowDays.map(day => day.date), `${selectedMeta.label}趋势`, selectedMeta.unit, 'nutrient-trend', '#155a52', sources, $('#nutrient-chart').clientWidth));
+  if (pageVisible('nutrition')) $('#nutrient-chart').replaceChildren(lineChart(trendValues, windowDays.map(day => day.date), `${selectedMeta.label}趋势`, selectedMeta.unit, 'nutrient-trend', '#155a52', sources, $('#nutrient-chart').clientWidth));
+  else $('#nutrient-chart').replaceChildren();
   const rows = $('#nutrient-rows'); rows.replaceChildren();
   nutrientMeta.filter(meta => !coreKeys.includes(meta.key)).forEach(meta => {
     const stat = summaryFor(selectedDay()).nutrients[meta.key] || summarizeNutrients([], meta.key);
@@ -204,25 +178,6 @@ function renderNutrients(windowDays) {
     const value = document.createElement('span'); value.textContent = displayValue(stat.value, meta.unit);
     const detail = document.createElement('small'); detail.textContent = `${goals[meta.key] ? `${ceilingKeys.has(meta.key) ? '上限' : '示例目标'} ${goals[meta.key]} ${meta.unit}` : '无目标'}，${coverageText(stat)}`;
     row.append(name, value, detail); rows.append(row);
-  });
-  const groups = $('#food-details'); groups.replaceChildren();
-  if (!selectedDay().foodEntries.length) { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = '所选日期没有食物记录'; groups.append(empty); return; }
-  selectedDay().foodEntries.forEach(entry => {
-    const meal = document.createElement('section'); meal.className = 'food-meal';
-    const heading = document.createElement('h4'); heading.textContent = `${entry.meal_label}，${entry.local_time}`; meal.append(heading);
-    entry.foodItems.forEach(food => {
-      const article = document.createElement('article'); article.className = 'food-row';
-      const name = document.createElement('strong'); name.className = 'food-name'; name.textContent = `${food.name} ${food.amount}`;
-      const metrics = document.createElement('div'); metrics.className = 'food-main';
-      ['kcal', 'protein', 'carbs', 'fat', 'fiber'].forEach(key => { const meta = nutrientMeta.find(item => item.key === key); const nutrient = food.nutrients[key]; const value = document.createElement('span'); value.textContent = `${meta.label} ${displayValue(nutrient?.value, meta.unit)}`; metrics.append(value); });
-      const detail = document.createElement('details'); detail.dataset.expand = 'food';
-      const summary = document.createElement('summary'); summary.textContent = '营养详情';
-      const extra = document.createElement('div'); extra.className = 'food-extra';
-      nutrientMeta.filter(meta => !['kcal', 'protein', 'carbs', 'fat', 'fiber'].includes(meta.key)).forEach(meta => { const nutrient = food.nutrients[meta.key]; const value = document.createElement('span'); value.textContent = `${meta.label} ${displayValue(nutrient?.value, meta.unit)}，${sourceLabels[nutrient?.source] || '未知'}`; extra.append(value); });
-      const source = document.createElement('span'); source.textContent = `来源：${sourceLabels[food.nutrients.kcal?.source] || '未知'}`; extra.append(source);
-      detail.append(summary, extra); article.append(name, metrics, detail); meal.append(article);
-    });
-    groups.append(meal);
   });
 }
 
@@ -291,30 +246,25 @@ function renderSync() {
   });
 }
 
-dates.forEach(date => { const option = document.createElement('option'); option.value = date; option.textContent = date; dateSelect.append(option); });
-dateSelect.value = selectedDate;
-dateSelect.addEventListener('change', () => { selectedDate = dateSelect.value; workoutDate = null; workoutType = null; render(); });
+dateSelects.forEach(select => { dates.forEach(date => { const option = document.createElement('option'); option.value = date; option.textContent = date; select.append(option); }); select.value = selectedDate; select.addEventListener('change', () => { selectedDate = select.value; dateSelects.forEach(item => { item.value = selectedDate; }); render(); }); });
 $('#nutrient-select').addEventListener('change', () => {
   const windowDays = rollingDays(days, selectedDate);
   const meta = nutrientMeta.find(item => item.key === $('#nutrient-select').value);
   const values = windowDays.map(day => summaryFor(day).nutrients[meta.key]?.value ?? null);
   const sources = windowDays.map(day => { const stat = summaryFor(day).nutrients[meta.key]; return `覆盖 ${stat?.known ?? 0}/${stat?.total ?? 0}`; });
-  $('#nutrient-chart').replaceChildren(lineChart(values, windowDays.map(day => day.date), `${meta.label}趋势`, meta.unit, 'nutrient-trend', '#155a52', sources, $('#nutrient-chart').clientWidth));
+  if (pageVisible('nutrition')) $('#nutrient-chart').replaceChildren(lineChart(values, windowDays.map(day => day.date), `${meta.label}趋势`, meta.unit, 'nutrient-trend', '#155a52', sources, $('#nutrient-chart').clientWidth));
   $('[data-nutrient-title]').textContent = `${meta.label}趋势`;
   $('[data-target-mode]').textContent = ceilingKeys.has(meta.key) ? '摄入上限' : '示例目标';
   const current = summaryFor(selectedDay()).nutrients[meta.key];
   $('#coverage-summary').textContent = current ? coverageText(current) : '覆盖 0/0，数据不全';
 });
-$('#clear-filter').addEventListener('click', () => { workoutDate = null; workoutType = null; drawWorkouts(); drawHeatmap(); });
-document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
-  workoutType = workoutType === button.dataset.filter ? null : button.dataset.filter;
-  workoutDate = null;
-  drawWorkouts();
-  drawHeatmap();
-}));
+const coverageControls = [...document.querySelectorAll('[data-control^="coverage-"]')];
+coverageControls.forEach(control => control.addEventListener('change', () => renderWorkoutPage({ selectedDate, sessions: trainingSessions, dayLogs, legacyWorkouts: workouts })));
+$('#coverage-clear').addEventListener('click', () => { coverageControls.forEach(control => { control.value = ''; }); renderWorkoutPage({ selectedDate, sessions: trainingSessions, dayLogs, legacyWorkouts: workouts }); });
+
 initChartTooltip();
 render();
-const chartHosts = ['#overview-chart', '#heatmap', '#distribution', '#training-trends', '#meal-bars', '#timeline', '#kcal-chart', '#protein-chart', '#nutrient-chart'].map(selector => $(selector));
+const chartHosts = ['#overview-chart', '#training-trends', '#meal-bars', '#timeline', '#kcal-chart', '#protein-chart', '#nutrient-chart'].map(selector => $(selector)).filter(Boolean);
 const chartWidths = new WeakMap();
 const chartObserver = new ResizeObserver(entries => {
   const resized = entries.some(entry => { const previous = chartWidths.get(entry.target); const current = Math.round(entry.contentRect.width); chartWidths.set(entry.target, current); return previous != null && previous !== current; });
@@ -322,10 +272,10 @@ const chartObserver = new ResizeObserver(entries => {
 });
 chartHosts.forEach(host => chartObserver.observe(host));
 
-const navLinks = [...document.querySelectorAll('.sidebar nav a, .mobile-nav a')];
-const observer = new IntersectionObserver(entries => {
-  const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-  if (!visible) return;
-  navLinks.forEach(link => { const active = link.hash === `#${visible.target.id}`; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current', 'location'); else link.removeAttribute('aria-current'); });
-}, { rootMargin: '-18% 0px -68% 0px', threshold: [0, .2, .5] });
-document.querySelectorAll('[data-module]').forEach(section => observer.observe(section));
+
+initRouter({ onPageChange: () => render() });
+
+export function renderFoodPage() { render(); }
+export function renderNutritionPage() { render(); }
+export function renderAppleHealthPage() { render(); }
+export function renderDailyHints() { return document.querySelector('[data-hints]'); }

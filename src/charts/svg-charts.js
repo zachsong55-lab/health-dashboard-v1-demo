@@ -59,7 +59,14 @@ export function lineChart(values, dates, title, unit, id = 'trend', color = '#17
     const flush = () => { if (segment.length > 1) svg.append(svgEl('path', { d: segment.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' '), fill: 'none', stroke: colors[seriesIndex % colors.length], 'stroke-width': 2, 'stroke-dasharray': multi && seriesIndex ? '6 4' : null, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })); segment = []; };
     entries.forEach((value, index) => {
       const x = xAt(index);
-      if (typeof value !== 'number' || !Number.isFinite(value)) { flush(); if (!multi) { const missing = attachTooltip(svgEl('text', { x, y: 62, 'text-anchor': 'middle', fill: '#344b47', 'font-size': 12, tabindex: 0, role: 'img' }, '未知'), `${dates[index]}，未知 ${unit}（数据不足）`); svg.append(missing); } return; }
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        flush();
+        const detail = `${dates[index]}，${multi ? `系列 ${seriesIndex + 1}，` : ''}无记录（趋势断线，不按 0 计算）`;
+        const missing = attachTooltip(svgEl('circle', { cx: x, cy: 191 + seriesIndex * 8, r: 4, fill: '#fff', stroke: '#53645f', 'stroke-width': 1.5, 'stroke-dasharray': '2 2', tabindex: 0, role: 'img', 'aria-label': detail, class: 'series-gap' }), detail);
+        svg.append(missing);
+        if (!multi) { const label = attachTooltip(svgEl('text', { x, y: 62, 'text-anchor': 'middle', fill: '#344b47', 'font-size': 12, tabindex: 0, role: 'img' }, '未知'), `${dates[index]}，未知 ${unit}（数据不足）`); svg.append(label); }
+        return;
+      }
       const y = yAt(value); segment.push({ x, y });
       const detail = `${dates[index]}，${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value)} ${unit}${multi ? (seriesIndex ? ' 总消耗' : ' 摄入') : ''}（${sourceSets[seriesIndex]?.[index] || '记录汇总'}）`;
       const hitWidth = Math.max(44, Math.min(72, (right - left) / Math.max(1, dates.length - 1)));
