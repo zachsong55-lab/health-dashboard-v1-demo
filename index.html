@@ -3,69 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f3f6f5">
-  <title>健康工作室 · 数据概览</title>
+  <meta name="theme-color" content="#f4f7f6">
+  <title>健康工作室，身体状态</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles/app.css">
 </head>
 <body>
   <a class="skip" href="#main">跳到主要内容</a>
-  <header class="top">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">+</span><div><strong>健康工作室</strong><small>健康习惯与活动概览</small></div></div>
-    <div class="top-tools"><span class="sample-badge">示例数据 · 虚构演示</span><label for="day-select">查看日期</label><select id="day-select" data-control="date-switch" name="date" aria-label="查看日期"></select></div>
-  </header>
+  <div class="mobile-header">
+    <header class="top">
+      <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">+</span><span><strong>健康工作室</strong><small>每日健康简报</small></span></a>
+      <div class="top-tools"><span class="sample-badge">演示数据</span><label for="day-select">查看日期</label><select id="day-select" data-control="date-switch" name="date" aria-label="查看日期"></select></div>
+    </header>
+    <nav class="mobile-nav" aria-label="主导航">
+      <a class="active" href="#overview" aria-current="location">总览</a><a href="#training">训练</a><a href="#diet">饮食</a><a href="#nutrients">营养素</a><a href="#sync">Apple Health</a>
+    </nav>
+  </div>
   <div class="shell">
-    <aside class="sidebar">
-      <div class="side-caption">工作区</div>
-      <nav aria-label="主导航">
-        <a class="active" href="#overview" aria-current="location">总览</a><a href="#training">训练</a><a href="#diet">饮食</a><a href="#nutrients">营养素</a><a href="#sync">Apple Health</a>
-      </nav>
-      <div class="side-note"><span class="pulse"></span>本地示例环境<small>数据仅存于此页面</small></div>
-    </aside>
+    <aside class="sidebar"><div class="side-caption">健康工作室</div><nav aria-label="主导航"><a class="active" href="#overview" aria-current="location">总览</a><a href="#training">训练</a><a href="#diet">饮食</a><a href="#nutrients">营养素</a><a href="#sync">Apple Health</a></nav><div class="side-note">演示数据<small>数值仅供界面演示</small></div></aside>
     <main id="main">
       <section id="overview" data-module="overview" class="module">
-        <div class="page-heading"><div><p class="eyebrow">健康概览　/　<span data-date-title></span></p><h1 data-dynamic-title></h1></div><span class="sync-summary">示例数据 · 仅供界面演示</span></div>
-        <div class="hero-metrics">
-          <article class="metric lead"><span>摄入热量</span><strong data-metric="intake-kcal"></strong><small>kcal <i data-metric-note="intake-kcal">食物项汇总</i></small></article>
-          <article class="metric"><span>总消耗</span><strong data-metric="burn-kcal"></strong><small>kcal · 示例记录</small></article>
-          <article class="metric"><span>热量缺口</span><strong data-metric="deficit-kcal"></strong><small>kcal · 消耗减摄入</small></article>
-          <article class="metric"><span>蛋白质</span><strong data-metric="protein-g"></strong><small>g <i data-metric-note="protein-g">区间中值口径</i></small></article>
+        <div class="page-heading"><div><p class="eyebrow">每日健康简报</p><h1 data-dynamic-title></h1></div><span class="sync-summary">演示数据</span></div>
+        <div class="hero-state">
+          <div class="hero-metrics">
+            <article class="metric lead"><span>热量差</span><strong data-metric="deficit-kcal"></strong><small>kcal，消耗减摄入</small></article>
+            <article class="metric support"><span>摄入</span><strong data-metric="intake-kcal"></strong><small>kcal <i data-metric-note="intake-kcal">食物项汇总</i></small></article>
+            <article class="metric support"><span>总消耗</span><strong data-metric="burn-kcal"></strong><small>kcal</small></article>
+            <article class="metric"><span>蛋白质</span><strong data-metric="protein-g"></strong><small>g <i data-metric-note="protein-g">区间中值口径</i></small></article>
+          </div>
+          <div class="overview-grid">
+            <article class="eating-panel"><div class="panel-title"><div><h2>进食窗口</h2><p>24 小时记录时间带</p></div><span class="window-total" data-metric="eating-duration"></span></div><div class="day-band"><div class="window-track"><span hidden></span><span class="window-meals"></span><span class="window-ticks"><i data-time="0"></i><i data-time="6"></i><i data-time="12"></i><i data-time="18"></i><i data-time="24"></i></span></div></div><div class="window-times"><span>首餐 <strong data-metric="eating-first"></strong></span><span>末餐 <strong data-metric="eating-last"></strong></span></div><div class="panel-foot"><span>近 7 天训练 <b data-metric="week-workouts"></b> 次</span><span>最近体重 <b data-metric="latest-weight"></b></span><span>7 日均值 <b data-metric="weight-avg7"></b></span></div></article>
+            <article class="mini-chart"><div class="panel-title"><div><h2>热量趋势</h2><p data-range-label></p></div><span class="legend"><i></i>摄入　<span class="burn-key">总消耗</span></span></div><div id="overview-chart"></div></article>
+          </div>
         </div>
-        <div class="overview-grid">
-          <article class="panel eating-panel"><div class="panel-title"><div><h2>进食窗口</h2><p>从第一口到最后一口</p></div><span class="window-total" data-metric="eating-duration"></span></div>
-            <div class="window-times"><div><small>第一口</small><strong data-metric="eating-first"></strong></div><div class="window-track"><span></span></div><div><small>最后一口</small><strong data-metric="eating-last"></strong></div></div>
-            <div class="panel-foot"><span>最近 7 天训练 <b data-metric="week-workouts"></b> 次</span><span>最近体重 <b data-metric="latest-weight"></b></span><span>7 日平均 <b data-metric="weight-avg7"></b></span></div>
-          </article>
-          <article class="panel mini-chart"><div class="panel-title"><div><h2>热量趋势</h2><p data-range-label></p></div><span class="legend"><i></i>摄入 kcal</span></div><div id="overview-chart"></div></article>
-        </div>
       </section>
-      <section id="training" data-module="training" class="module">
-        <div class="section-heading"><div><p class="eyebrow">活动与恢复</p><h2>训练记录</h2></div><span class="section-meta">日期随上方选择联动</span></div>
-        <article class="panel chart-panel"><div class="panel-title"><div><h3>训练频率</h3><p>选择某一天筛选列表</p></div><span class="legend"><i></i>训练次数</span></div><div id="heatmap"></div>
-          <div class="distribution"><div><h3>训练类型分布</h3><div id="distribution"></div></div><div class="chart-legend"><button data-filter="力量训练" aria-pressed="false"><i class="swatch strength"></i>力量训练</button><button data-filter="快走" aria-pressed="false"><i class="swatch walk"></i>快走</button><button data-filter="骑行" aria-pressed="false"><i class="swatch bike"></i>骑行</button></div></div>
-        </article>
-        <article class="panel list-panel"><div class="panel-title"><div><h3>训练列表</h3><p id="workout-filter-label">最近训练 · 显示时长与活动热量</p></div><button class="text-button" id="clear-filter">清除筛选</button></div><div data-list="workouts" id="workout-list"></div></article>
+      <section id="training" data-module="training" class="module"><div class="section-heading"><div><p class="eyebrow">活动</p><h2>训练记录</h2></div><span class="section-meta">按日期查看频率与训练</span></div>
+        <article class="panel chart-panel"><div class="panel-title"><div><h3>训练频率</h3><p>选择日期筛选记录</p></div><span class="legend"><i></i>训练次数</span></div><div id="heatmap"></div><div class="distribution"><div><h3>训练类型分布</h3><div id="distribution"></div></div><div class="chart-legend"><button data-filter="力量训练" aria-pressed="false"><i class="swatch strength"></i>力量训练</button><button data-filter="快走" aria-pressed="false"><i class="swatch walk"></i>快走</button><button data-filter="骑行" aria-pressed="false"><i class="swatch bike"></i>骑行</button></div></div></article>
+        <article class="panel trend-panel"><div class="panel-title"><div><h3>近期训练量</h3><p data-range-label></p></div><span class="legend">时长　活动热量</span></div><div id="training-trends"></div></article>
+        <article class="list-panel"><div class="panel-title"><div><h3>训练列表</h3><p id="workout-filter-label">最近训练，时长与活动热量</p></div><button class="text-button" id="clear-filter">清除筛选</button></div><div data-list="workouts" id="workout-list"></div></article>
       </section>
-      <section id="diet" data-module="nutrition-diet" class="module">
-        <div class="section-heading"><div><p class="eyebrow">摄入与节律</p><h2>饮食记录</h2></div><span class="section-meta">按所选日期更新</span></div>
-        <div class="diet-grid"><article class="panel"><div class="panel-title"><div><h3 data-meal-title></h3><p>热量分布 · kcal</p></div><strong id="meal-total" class="small-total"></strong></div><div id="meal-bars"></div></article>
-          <article class="panel timeline-panel"><div class="panel-title"><div><h3>进食时间轴</h3><p>实际记录时点与进食窗口</p></div><span id="timeline-window"></span></div><div id="timeline"></div></article></div>
-        <div class="trend-grid"><article class="panel"><div class="panel-title"><div><h3>热量趋势</h3><p data-range-label></p></div><span class="legend"><i></i>摄入</span></div><div id="kcal-chart"></div></article>
-          <article class="panel"><div class="panel-title"><div><h3>蛋白质趋势</h3><p data-range-label></p></div><span class="legend protein"><i></i>蛋白质</span></div><div id="protein-chart"></div></article></div>
+      <section id="diet" data-module="nutrition-diet" class="module"><div class="section-heading"><div><p class="eyebrow">摄入</p><h2>饮食记录</h2></div><span class="section-meta">按所选日期更新</span></div>
+        <div class="diet-grid"><article class="panel meal-panel"><div class="panel-title"><div><h3 data-meal-title></h3><p>三餐摄入分布</p></div><strong id="meal-total" class="small-total"></strong></div><div id="meal-bars"></div></article><article class="panel timeline-panel"><div class="panel-title"><div><h3>进食时间轴</h3><p>实际记录时点</p></div><span id="timeline-window"></span></div><div id="timeline"></div></article></div>
+        <div class="trend-grid"><article class="panel"><div class="panel-title"><div><h3>热量趋势</h3><p data-range-label></p></div><span class="legend"><i></i>摄入</span></div><div id="kcal-chart"></div></article><article class="panel"><div class="panel-title"><div><h3>蛋白质趋势</h3><p data-range-label></p></div><span class="legend protein"><i></i>蛋白质</span></div><div id="protein-chart"></div></article></div>
+        <article class="food-details-panel"><div class="panel-title"><div><h3>食物记录</h3><p>能量与主要营养素；展开查看详情</p></div></div><div id="food-details"></div></article>
       </section>
-      <section id="nutrients" data-module="nutrients" class="module">
-        <div class="section-heading"><div><p class="eyebrow">食物成分</p><h2>营养素</h2></div><label class="switch-label">趋势指标<select data-control="nutrient-switch" id="nutrient-select" name="nutrient"></select></label></div>
-        <div class="nutrient-layout"><article class="panel nutrient-focus"><div class="panel-title"><div><h3 data-nutrient-title></h3><p>逐项累计，未知值不按零计算</p></div><span class="target-badge" data-target-mode>示例目标</span></div><div id="nutrient-focus"></div><div id="nutrient-chart"></div></article>
-          <article class="panel nutrient-table-panel"><div class="panel-title"><div><h3>每日营养素</h3><p id="coverage-summary"></p></div><span class="target-badge">示例目标</span></div><div class="table-scroll"><table><thead><tr><th>营养素</th><th>摄入</th><th>目标或上限</th><th>进度</th></tr></thead><tbody id="nutrient-rows"></tbody></table></div></article></div>
-        <article class="panel food-details-panel"><div class="panel-title"><div><h3>当日食物明细</h3><p>按餐列出食物值与来源</p></div></div><div id="food-details"></div></article>
+      <section id="nutrients" data-module="nutrients" class="module"><div class="section-heading"><div><p class="eyebrow">食物成分</p><h2>营养素</h2></div><label class="switch-label">趋势指标<select data-control="nutrient-switch" id="nutrient-select" name="nutrient"></select></label></div>
+        <article class="nutrient-focus panel"><div class="panel-title"><div><h3>核心营养素</h3><p>数值、单位与示例目标</p></div><span class="target-badge">示例目标</span></div><div id="core-nutrients"></div></article>
+        <div class="nutrient-layout"><article class="panel nutrient-chart-panel"><div class="panel-title"><div><h3 data-nutrient-title></h3><p>逐项累计，未知值不按零计算</p></div><span class="target-badge" data-target-mode>示例目标</span></div><p id="coverage-summary"></p><div id="nutrient-chart"></div></article><article class="panel nutrient-table-panel"><details data-expand="micronutrients"><summary>维生素和矿物质 <span>查看逐项明细</span></summary><div id="nutrient-rows"></div></details></article></div>
       </section>
-      <section id="sync" data-module="sync" class="module">
-        <div class="section-heading"><div><p class="eyebrow">来源与可信度</p><h2>Apple Health 同步</h2></div><span class="section-meta">最后同步 <b id="last-sync"></b></span></div>
-        <div id="sync-statuses" class="sync-statuses"></div>
-        <article class="panel source-table-panel"><div class="panel-title"><div><h3>当前记录来源</h3><p>估算、手动值与 Apple Health 实测分开列示</p></div></div><div class="table-scroll"><table><thead><tr><th>记录日期</th><th>记录类型</th><th>当前值 / 冲突双方</th><th>数据来源</th><th>同步状态</th><th>最后同步时间</th></tr></thead><tbody id="source-records"></tbody></table></div></article>
-        <article class="panel"><div class="panel-title"><div><h3>审计时间线</h3><p>每次补录均保留记录来源与处理结果</p></div><span class="source-label">来源：手动记录 / 估算 / Apple Health</span></div><div id="audit-list" class="audit-list" aria-live="polite"></div></article>
+      <section id="sync" data-module="sync" class="module"><div class="section-heading"><div><p class="eyebrow">来源与可信度</p><h2>Apple Health</h2></div><span class="section-meta">最后同步 <b id="last-sync"></b></span></div>
+        <div id="sync-statuses" class="sync-statuses"></div><article class="panel source-table-panel"><div class="panel-title"><div><h3>数据来源时间线</h3><p>冲突双方并列显示，状态同时使用图标与文字</p></div></div><div id="source-records"></div></article><article class="panel"><div class="panel-title"><div><h3>处理记录</h3><p>补录与核对均保留来源</p></div></div><div id="audit-list" class="audit-list" aria-live="polite"></div></article>
       </section>
-      <footer>健康工作室 · 本地交互原型 <span>全部数值均为虚构示例</span></footer>
+      <footer>健康工作室 <span>全部数值均为虚构演示</span></footer>
     </main>
   </div>
   <div class="chart-tooltip" role="tooltip" hidden></div>
